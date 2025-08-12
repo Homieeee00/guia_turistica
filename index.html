@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Opciones Turísticas Cercanas a Destino</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 10px; padding: 0; background:#f9f9f9;
+  }
+  h1 {
+    text-align:center;
+    color:#005a9c;
+  }
+  form, #resultado {
+    max-width: 600px;
+    margin: 10px auto;
+    background: white;
+    padding: 15px 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  label {
+    display:block;
+    margin-top: 10px;
+    font-weight: bold;
+  }
+  select, input[type=number] {
+    width: 100%;
+    padding: 8px;
+    margin-top: 4px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+  button {
+    margin-top: 15px;
+    background:#007acc;
+    color: white;
+    border:none;
+    padding: 10px 15px;
+    font-size: 16px;
+    cursor: pointer;
+    border-radius: 5px;
+  }
+  button:hover {
+    background:#005a8f;
+  }
+  ul {
+    padding-left: 20px;
+  }
+  ul li {
+    margin-bottom: 8px;
+  }
+  #mensaje {
+    margin-top: 10px;
+    font-weight: bold;
+  }
+</style>
+</head>
+<body>
+
+<h1>Opciones Turísticas Cercanas a un Destino</h1>
+
+<form id="formulario">
+  <label for="destinoSelect">Selecciona un lugar de destino:</label>
+  <select id="destinoSelect" required>
+    <option value="" disabled selected>-- Elige un destino --</option>
+  </select>
+
+  <label for="presupuestoInput">Presupuesto disponible (moneda local):</label>
+  <input type="number" id="presupuestoInput" min="0" placeholder="Ej: 200" required />
+
+  <button type="submit">Buscar opciones turísticas</button>
+</form>
+
+<div id="resultado" style="display:none;">
+  <h2>Opciones turísticas cerca de <span id="destinoNombre"></span>:</h2>
+  <ul id="listaOpciones"></ul>
+  <p id="mensaje"></p>
+</div>
+
+<script>
+// Base de datos local ampliada con 12 destinos turísticos
+const destinos = [
+  { id: 'd1', nombre: 'Parque Chapultepec', lat: 19.4204, lng: -99.1819, costo: 0, descripcion: 'Parque urbano con museos y lagos.' },
+  { id: 'd2', nombre: 'Museo Nacional de Antropología', lat: 19.4260, lng: -99.1860, costo: 85, descripcion: 'Museo con arte y cultura prehispánica.' },
+  { id: 'd3', nombre: 'Coyoacán (centro histórico)', lat: 19.3494, lng: -99.1623, costo: 50, descripcion: 'Barrio cultural con plazas, mercados y museos.' },
+  { id: 'd4', nombre: 'Parque Bicentenario', lat: 19.4550, lng: -99.1843, costo: 0, descripcion: 'Gran parque con áreas verdes y actividades al aire libre.' },
+  { id: 'd5', nombre: 'Zona Arqueológica de Teotihuacán', lat: 19.6925, lng: -98.8438, costo: 80, descripcion: 'Sitio arqueológico con pirámides prehispánicas.' },
+  { id: 'd6', nombre: 'Mercado de San Juan', lat: 19.4263, lng: -99.1424, costo: 30, descripcion: 'Mercado tradicional con comida típica y productos gourmet.' },
+  { id: 'd7', nombre: 'Templo Mayor', lat: 19.4345, lng: -99.1330, costo: 65, descripcion: 'Zona arqueológica en el centro histórico.' },
+  { id: 'd8', nombre: 'Museo Frida Kahlo', lat: 19.3556, lng: -99.1623, costo: 70, descripcion: 'Casa museo de la famosa pintora mexicana.' },
+  { id: 'd9', nombre: 'Parque México', lat: 19.3997, lng: -99.1723, costo: 0, descripcion: 'Parque en la colonia Condesa con áreas verdes.' },
+  { id: 'd10', nombre: 'Xochimilco', lat: 19.2713, lng: -99.1013, costo: 40, descripcion: 'Canales y trajineras para paseos en barco.' },
+  { id: 'd11', nombre: 'Museo Soumaya', lat: 19.4351, lng: -99.2043, costo: 0, descripcion: 'Museo de arte con entrada gratuita.' },
+  { id: 'd12', nombre: 'Castillo de Chapultepec', lat: 19.4201, lng: -99.1818, costo: 60, descripcion: 'Castillo histórico con museos y vistas.' }
+];
+
+// Cargar destinos al <select>
+const destinoSelect = document.getElementById('destinoSelect');
+destinos.forEach(d => {
+  const option = document.createElement('option');
+  option.value = d.id;
+  option.textContent = d.nombre;
+  destinoSelect.appendChild(option);
+});
+
+// Función para convertir grados a radianes
+const toRad = (deg) => (deg * Math.PI) / 180;
+
+// Función Haversine para distancia en km entre dos puntos geográficos
+const distanciaKm = (a, b) => {
+  const R = 6371;
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const aHarv = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(aHarv), Math.sqrt(1 - aHarv));
+  return R * c;
+};
+
+document.getElementById('formulario').addEventListener('submit', (e) => {
+  e.preventDefault();
+
+  const destinoId = destinoSelect.value;
+  const presupuesto = parseFloat(document.getElementById('presupuestoInput').value);
+
+  if (!destinoId) {
+    alert('Por favor selecciona un destino.');
+    return;
+  }
+  if (isNaN(presupuesto) || presupuesto < 0) {
+    alert('Ingresa un presupuesto válido.');
+    return;
+  }
+
+  // Buscar destino elegido
+  const destinoEncontrado = destinos.find(d => d.id === destinoId);
+
+  // Radio máximo para buscar sitios cercanos (ej: 15 km)
+  const radioMaxKm = 15;
+
+  // Filtrar destinos cercanos, excluyendo el destino mismo y que quepan en presupuesto
+  const cercanos = destinos.filter(d => {
+    if (d.id === destinoEncontrado.id) return false;
+    const dist = distanciaKm(destinoEncontrado, d);
+    return dist <= radioMaxKm && d.costo <= presupuesto;
+  });
+
+  // Mostrar resultados
+  const listaOpciones = document.getElementById('listaOpciones');
+  listaOpciones.innerHTML = '';
+
+  if (cercanos.length === 0) {
+    listaOpciones.innerHTML = '<li>No hay opciones turísticas cercanas dentro de tu presupuesto.</li>';
+  } else {
+    cercanos.forEach(d => {
+      const li = document.createElement('li');
+      li.textContent = `${d.nombre} - Costo: ${d.costo} - ${d.descripcion}`;
+      listaOpciones.appendChild(li);
+    });
+  }
+
+  document.getElementById('destinoNombre').textContent = destinoEncontrado.nombre;
+  document.getElementById('resultado').style.display = 'block';
+});
+</script>
+
+</body>
+</html>
